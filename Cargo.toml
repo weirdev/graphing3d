@@ -1,0 +1,7 @@
+[package]
+name = "graphing3d"
+version = "0.1.0"
+authors = ["Wes Weirather <weirdev@outlook.com>"]
+
+[dependencies]
+image = "*"
