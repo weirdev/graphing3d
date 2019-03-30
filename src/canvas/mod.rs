@@ -2,32 +2,25 @@ use image::{ImageBuffer, Luma};
 use std::io;
 use std::path::Path;
 
-pub struct Line {
-    pub x0: f64,
-    pub y0: f64,
-    pub x1: f64,
-    pub y1: f64
-}
+mod scene2d;
+mod scene3d;
 
-pub struct Ellipse {
-    pub x0: f64,
-    pub y0: f64,
-    pub x1: f64,
-    pub y1: f64
-}
+pub use self::scene2d::{Shape2D, Line2D, Ellipse2D};
+pub use self::scene3d::{Shape3D, Vector3D};
 
-pub enum Shape {
-    Line(Line),
-    Ellipse(Ellipse)
+pub enum Scene {
+    Scene2D(Vec<Shape2D>),
+    Scene3D(Vec<Shape3D>)
 }
 
 pub trait Canvas {
     fn draw(&mut self, x: f64, y: f64, color: u8);
-    fn draw_line(&mut self, line: &Line);
-    fn draw_ellipse(&mut self, ellipse: &Ellipse);
+    fn draw_line2d(&mut self, line: &Line2D);
+    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D);
+    fn draw_point3d(&mut self, point: &Vector3D);
     fn save<Q>(&self, path: Q) -> io::Result<()> 
             where Q: AsRef<Path>;
-    fn render(&mut self, scene: Vec<Shape>);
+    fn render(&mut self, scene: Scene);
 }
 
 pub struct ImageCanvas {
@@ -55,22 +48,74 @@ impl Canvas for ImageCanvas {
         self.img.save(path)
     }
 
-    fn draw_line(&mut self, line: &Line) {
+    fn draw_line2d(&mut self, line: &Line2D) {
         let dims = self.img.dimensions();
-        draw_line_antialiased(line, self, dims);
+        draw_line2d_antialiased(line, self, dims);
     }
     
-    fn draw_ellipse(&mut self, ellipse: &Ellipse) {
+    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D) {
         let dims = self.img.dimensions();
         draw_ellipse(ellipse, self, dims);
     }
 
-    fn render(&mut self, scene: Vec<Shape>) {
-        for shape in scene.iter() {
-            match shape {
-                Shape::Line(line) => self.draw_line(line),
-                Shape::Ellipse(ellipse) => self.draw_ellipse(ellipse)
-            }
+    fn draw_point3d(&mut self, point: &Vector3D) {
+        println!("1");
+        let cameraloc = Vector3D {
+            x: 0.5,
+            y: 0.5,
+            z: -2.0
+        };
+        let camdir = Vector3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0
+        };
+
+        let camtopoint = point - &cameraloc;
+
+        let camxrad = camdir.x.acos();
+        let camyrad = camdir.y.acos();
+
+        println!("2");
+
+        let ptxrad = (camtopoint.x / camtopoint.norm()).acos();
+        let ptyrad = (camtopoint.y / camtopoint.norm()).acos();
+
+        let relptxrad = ptxrad - camxrad;
+        let relptyrad = ptyrad - camyrad;
+
+        let totalviewrad= ((0.5 / 2.0) as f64).atan();
+
+        let ptplotxpos = relptxrad / totalviewrad + 0.5;
+        let ptplotypos = relptyrad / totalviewrad + 0.5;
+
+        println!("{} {}", ptplotxpos, ptplotypos);
+
+        self.draw_ellipse2d(&Ellipse2D {
+            x0: ptplotxpos - 0.01,
+            x1: ptplotxpos + 0.01,
+            y0: ptplotypos - 0.01,
+            y1: ptplotypos + 0.01
+        })
+    }
+
+    fn render(&mut self, scene: Scene) {
+        match scene {
+            Scene::Scene2D(scene) => {
+                    for shape in scene.iter() {
+                        match shape {
+                            Shape2D::Line2D(line) => self.draw_line2d(line),
+                            Shape2D::Ellipse2D(ellipse) => self.draw_ellipse2d(ellipse)
+                        }
+                    }
+                }
+            Scene::Scene3D(scene) => {
+                    for shape in scene.iter() {
+                        match shape {
+                            Shape3D::Point3D(point) => self.draw_point3d(point)
+                        }
+                    }
+                }
         }
     }
 }
@@ -83,7 +128,7 @@ fn scale_to_byte(x: f64) -> u8 {
     (x * 255.0).round() as u8
 }
 
-fn draw_line_antialiased(line: &Line, img: &mut impl Canvas, dimensions: (u32, u32)) {
+fn draw_line2d_antialiased(line: &Line2D, img: &mut impl Canvas, dimensions: (u32, u32)) {
     let mut x0 = line.x0 * dimensions.0 as f64;
     let mut y0 = line.y0 * dimensions.1 as f64;
     let mut x1 = line.x1 * dimensions.0 as f64;
@@ -160,7 +205,7 @@ fn draw_line_antialiased(line: &Line, img: &mut impl Canvas, dimensions: (u32, u
 }
 
 //http://members.chello.at/~easyfilter/bresenham.html
-fn draw_ellipse(ellipse: &Ellipse, img: &mut impl Canvas, dimensions: (u32, u32)) {
+fn draw_ellipse(ellipse: &Ellipse2D, img: &mut impl Canvas, dimensions: (u32, u32)) {
     let mut x0 = (ellipse.x0 * dimensions.0 as f64).round() as u32;
     let mut y0 = (ellipse.y0 * dimensions.1 as f64).round() as u32;
     let mut x1 = (ellipse.x1 * dimensions.0 as f64).round() as u32;
@@ -187,8 +232,6 @@ fn draw_ellipse(ellipse: &Ellipse, img: &mut impl Canvas, dimensions: (u32, u32)
     a *= 8 * a;
     b1 = 8 * b * b;
 
-    println!("{} {} {} {}", x0, x1, y0, y1);
-
     loop {
         img.draw(x1 as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
         img.draw(x0 as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
@@ -213,7 +256,7 @@ fn draw_ellipse(ellipse: &Ellipse, img: &mut impl Canvas, dimensions: (u32, u32)
         }
     }
 
-    /*
+    
     while (y0 as i32 - y1 as i32) < b as i32 {
         img.draw((x0-1) as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
         img.draw((x1+1) as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
@@ -221,5 +264,5 @@ fn draw_ellipse(ellipse: &Ellipse, img: &mut impl Canvas, dimensions: (u32, u32)
         img.draw((x0-1) as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, 255);
         img.draw((x1+1) as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, 255);
         y1 -= 1;
-    }*/
+    }
 }

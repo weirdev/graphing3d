@@ -5,3 +5,7 @@ authors = ["Wes Weirather <weirdev@outlook.com>"]
 
 [dependencies]
 image = "*"
+
+[lib]
+name = "graphing3d"
+crate-type = ["dylib"]
