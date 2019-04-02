@@ -1,23 +1,24 @@
-use image::{ImageBuffer, Luma};
 use std::io;
 use std::path::Path;
+use image::{ImageBuffer, Luma};
+use ndarray::{Array, Array1, Array2, Zip, aview_mut1};
 
 mod scene2d;
 mod scene3d;
 
 pub use self::scene2d::{Shape2D, Line2D, Ellipse2D};
-pub use self::scene3d::{Shape3D, Vector3D};
+pub use self::scene3d::Shape3D;
 
-pub enum Scene {
+pub enum Scene<'a> {
     Scene2D(Vec<Shape2D>),
-    Scene3D(Vec<Shape3D>)
+    Scene3D(Vec<Shape3D<'a>>)
 }
 
 pub trait Canvas {
     fn draw(&mut self, x: f64, y: f64, color: u8);
     fn draw_line2d(&mut self, line: &Line2D);
     fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D);
-    fn draw_point3d(&mut self, point: &Vector3D);
+    fn draw_points3d(&mut self, points: &mut Array2<f64>);
     fn save<Q>(&self, path: Q) -> io::Result<()> 
             where Q: AsRef<Path>;
     fn render(&mut self, scene: Scene);
@@ -58,45 +59,55 @@ impl Canvas for ImageCanvas {
         draw_ellipse(ellipse, self, dims);
     }
 
-    fn draw_point3d(&mut self, point: &Vector3D) {
-        println!("1");
-        let cameraloc = Vector3D {
-            x: 0.5,
-            y: 0.5,
-            z: -2.0
-        };
-        let camdir = Vector3D {
-            x: 0.0,
-            y: 0.0,
-            z: 1.0
-        };
+    fn draw_points3d(&mut self, points: &mut Array2<f64>) {
+        let cameraloc = array![0.5, 0.5, -2.0];
 
-        let camtopoint = point - &cameraloc;
+        // Tait–Bryan angle vector in radians
+        let camdir: Array1<f64> = array![0.0, 0.0, 0.0];
 
-        let camxrad = camdir.x.acos();
-        let camyrad = camdir.y.acos();
+        // Relative to cameraloc
+        let display_loc = array![0.0, 0.0, 1.0];
 
-        println!("2");
+        *points -= &cameraloc;
 
-        let ptxrad = (camtopoint.x / camtopoint.norm()).acos();
-        let ptyrad = (camtopoint.y / camtopoint.norm()).acos();
+        let mut transform_matrix = array![
+            [1.0, 0.0, 0.0],
+            [0.0, camdir[0].cos(), camdir[0].sin()],
+            [0.0, -camdir[0].sin(), camdir[0].cos()]];
+        
+        transform_matrix = transform_matrix.dot(&array![
+            [camdir[1].cos(), 0.0, -camdir[1].sin()],
+            [0.0, 1.0, 0.0],
+            [camdir[1].sin(), 0.0, camdir[1].cos()]]);
 
-        let relptxrad = ptxrad - camxrad;
-        let relptyrad = ptyrad - camyrad;
+        transform_matrix = transform_matrix.dot(&array![
+            [camdir[2].cos(), camdir[2].sin(), 0.0],
+            [-camdir[2].sin(), camdir[2].cos(), 0.0],
+            [0.0, 0.0, 1.0]]);
+        
+        let transf_points = points.dot(&transform_matrix.t());
 
-        let totalviewrad= ((0.5 / 2.0) as f64).atan();
+        let mut proj_points = Array::zeros((points.dim().0, 2));
 
-        let ptplotxpos = relptxrad / totalviewrad + 0.5;
-        let ptplotypos = relptyrad / totalviewrad + 0.5;
+        Zip::from(proj_points.genrows_mut())
+            .and(transf_points.genrows())
+            .apply(|mut proj, pt3d| 
+                    proj.assign(&aview_mut1(&mut 
+                        [(display_loc[2] / pt3d[2]) * pt3d[0] + display_loc[0],
+                        (display_loc[2] / pt3d[2]) * pt3d[1] + display_loc[1]])));
 
-        println!("{} {}", ptplotxpos, ptplotypos);
-
-        self.draw_ellipse2d(&Ellipse2D {
-            x0: ptplotxpos - 0.01,
-            x1: ptplotxpos + 0.01,
-            y0: ptplotypos - 0.01,
-            y1: ptplotypos + 0.01
-        })
+        let fov_side = 0.5;
+        proj_points /= fov_side;
+        proj_points += 0.5;
+        
+        for point in proj_points.genrows() {
+            self.draw_ellipse2d(&Ellipse2D {
+                x0: point[0] - 0.01,
+                x1: point[0] + 0.01,
+                y0: point[1] - 0.01,
+                y1: point[1] + 0.01
+            });
+        }
     }
 
     fn render(&mut self, scene: Scene) {
@@ -109,10 +120,10 @@ impl Canvas for ImageCanvas {
                         }
                     }
                 }
-            Scene::Scene3D(scene) => {
-                    for shape in scene.iter() {
+            Scene::Scene3D(mut scene) => {
+                    for shape in scene.iter_mut() {
                         match shape {
-                            Shape3D::Point3D(point) => self.draw_point3d(point)
+                            Shape3D::Points3D(ref mut points) => self.draw_points3d(*points)
                         }
                     }
                 }

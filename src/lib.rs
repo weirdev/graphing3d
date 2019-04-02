@@ -1,4 +1,6 @@
 extern crate image;
+#[macro_use]
+extern crate ndarray;
 
 mod canvas;
 
