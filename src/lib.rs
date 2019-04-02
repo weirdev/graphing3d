@@ -4,7 +4,9 @@ extern crate ndarray;
 
 mod canvas;
 
-use canvas::{Canvas, ImageCanvas, Line2D, Shape2D, Ellipse2D, Scene};
+use std::slice;
+use canvas::{Canvas, ImageCanvas, Line2D, Shape2D, Ellipse2D, Scene, Shape3D};
+use ndarray::{aview_mut1};
 
 #[no_mangle]
 pub extern "C" fn subroutine1() {
@@ -26,4 +28,17 @@ pub extern "C" fn subroutine1() {
     scene.push(Shape2D::Ellipse2D(ellipse1));
     img.render(Scene::Scene2D(scene));
     img.save("line.png").unwrap();
+}
+
+#[no_mangle]
+pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize) {
+    if point_buffer.is_null() {
+        return;
+    }
+    let point_buffer = unsafe { slice::from_raw_parts_mut(point_buffer, 3*pointcount) };
+
+    let mut points = aview_mut1(point_buffer).into_shape((pointcount, 3)).unwrap();
+    let mut img = ImageCanvas::blank(512, 512);
+    img.render(Scene::Scene3D(vec![Shape3D::Points3D(&mut points)]));
+    img.save("pointspython.png").unwrap();
 }

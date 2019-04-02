@@ -31,6 +31,6 @@ fn main() {
         [0.2, 0.7, 1.0]];
 
     img = ImageCanvas::blank(512, 512);
-    img.render(Scene::Scene3D(vec![Shape3D::Points3D(&mut points)]));
+    img.render(Scene::Scene3D(vec![Shape3D::Points3D(&mut points.view_mut())]));
     img.save("points2.png").unwrap();
 }

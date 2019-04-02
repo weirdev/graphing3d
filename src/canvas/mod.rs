@@ -1,7 +1,7 @@
 use std::io;
 use std::path::Path;
 use image::{ImageBuffer, Luma};
-use ndarray::{Array, Array1, Array2, Zip, aview_mut1};
+use ndarray::{Array, Array1, Zip, aview_mut1, ArrayViewMut2};
 
 mod drawing;
 
@@ -17,7 +17,7 @@ pub trait Canvas {
     fn draw(&mut self, x: f64, y: f64, color: u8);
     fn draw_line2d(&mut self, line: &Line2D);
     fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D);
-    fn draw_points3d(&mut self, points: &mut Array2<f64>);
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>);
     fn save<Q>(&self, path: Q) -> io::Result<()> 
             where Q: AsRef<Path>;
     fn render(&mut self, scene: Scene);
@@ -58,7 +58,7 @@ impl Canvas for ImageCanvas {
         draw_ellipse(ellipse, |x, y, c| self.draw(x, y, c), dims);
     }
 
-    fn draw_points3d(&mut self, points: &mut Array2<f64>) {
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>) {
         let cameraloc = array![0.5, 0.5, -2.0];
 
         // Tait–Bryan angle vector in radians

@@ -1,5 +1,5 @@
-use ndarray::Array2;
+use ndarray::ArrayViewMut2;
 
 pub enum Shape3D<'a> {
-    Points3D(&'a mut Array2<f64>)
+    Points3D(&'a mut ArrayViewMut2<'a, f64>)
 }
