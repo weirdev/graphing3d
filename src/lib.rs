@@ -10,6 +10,20 @@ use std::slice;
 use canvas::{Canvas, ImageCanvas, Line2D, Shape2D, Ellipse2D, Scene, Shape3D};
 use ndarray::{aview_mut1};
 
+#[repr(C)]
+pub struct RgbaStruct {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8
+}
+
+impl RgbaStruct {
+    fn to_pixel(&self) -> Rgba<u8> {
+        Rgba([self.r, self.g, self.b, self.a])
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn subroutine1() {
     let mut img = ImageCanvas::blank(512, 512, Rgba([255, 255, 255, 255]));
@@ -33,7 +47,7 @@ pub extern "C" fn subroutine1() {
 }
 
 #[no_mangle]
-pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize) {
+pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize, color: RgbaStruct) {
     if point_buffer.is_null() {
         return;
     }
@@ -41,6 +55,6 @@ pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize) {
 
     let mut points = aview_mut1(point_buffer).into_shape((pointcount, 3)).unwrap();
     let mut img = ImageCanvas::blank(512, 512, Rgba([255, 255, 255, 255]));
-    img.render(Scene::Scene3D(vec![(Shape3D::Points3D(&mut points), Rgba([0, 0, 0, 255]))]));
+    img.render(Scene::Scene3D(vec![(Shape3D::Points3D(&mut points), color.to_pixel())]));
     img.save("pointspython.png").unwrap();
 }
