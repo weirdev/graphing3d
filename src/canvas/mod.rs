@@ -1,6 +1,6 @@
 use std::io;
 use std::path::Path;
-use image::{ImageBuffer, Luma};
+use image::{ImageBuffer, Rgba};
 use ndarray::{Array, Array1, Zip, aview_mut1, ArrayViewMut2};
 
 mod drawing;
@@ -9,38 +9,38 @@ pub use self::drawing::{Shape2D, Line2D, Ellipse2D, Shape3D};
 pub use self::drawing::{draw_line2d_antialiased, draw_ellipse};
 
 pub enum Scene<'a> {
-    Scene2D(Vec<(Shape2D, u8)>),
-    Scene3D(Vec<(Shape3D<'a>, u8)>)
+    Scene2D(Vec<(Shape2D, Rgba<u8>)>),
+    Scene3D(Vec<(Shape3D<'a>, Rgba<u8>)>)
 }
 
 pub trait Canvas {
-    fn draw(&mut self, x: f64, y: f64, color: u8);
-    fn draw_line2d(&mut self, line: &Line2D, color: u8);
-    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: u8);
-    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: u8);
+    fn draw(&mut self, x: f64, y: f64, color: Rgba<u8>);
+    fn draw_line2d(&mut self, line: &Line2D, color: Rgba<u8>);
+    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: Rgba<u8>);
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: Rgba<u8>);
     fn save<Q>(&self, path: Q) -> io::Result<()> 
             where Q: AsRef<Path>;
     fn render(&mut self, scene: Scene);
 }
 
 pub struct ImageCanvas {
-    img: ImageBuffer<Luma<u8>, Vec<u8>>
+    img: ImageBuffer<Rgba<u8>, Vec<u8>>
 }
 
 impl ImageCanvas {
-    pub fn blank(x: u32, y: u32, background: u8) -> ImageCanvas {
+    pub fn blank(x: u32, y: u32, background: Rgba<u8>) -> ImageCanvas {
         ImageCanvas {
-            img: <ImageBuffer<Luma<u8>, Vec<u8>>>::from_pixel(x, y, Luma([background]))
+            img: <ImageBuffer<Rgba<u8>, Vec<u8>>>::from_pixel(x, y, background)
         }
     }
 }
 
 impl Canvas for ImageCanvas {
-    fn draw(&mut self, x: f64, y: f64, color: u8) {
+    fn draw(&mut self, x: f64, y: f64, color: Rgba<u8>) {
         let xcoord = (x * self.img.dimensions().0 as f64).round() as u32;
         // image y axis 0 at top, but for Canvas we use bottom as 0
         let ycoord = ((1.0 - y) * self.img.dimensions().1 as f64).round() as u32;
-        self.img.put_pixel(xcoord, ycoord, Luma([color]));
+        self.img.put_pixel(xcoord, ycoord, color);
     }
 
     fn save<Q>(&self, path: Q) -> io::Result<()> 
@@ -48,17 +48,17 @@ impl Canvas for ImageCanvas {
         self.img.save(path)
     }
 
-    fn draw_line2d(&mut self, line: &Line2D, color: u8) {
+    fn draw_line2d(&mut self, line: &Line2D, color: Rgba<u8>) {
         let dims = self.img.dimensions();
         draw_line2d_antialiased(line, |x, y, c| self.draw(x, y, c), dims, color);
     }
     
-    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: u8) {
+    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: Rgba<u8>) {
         let dims = self.img.dimensions();
         draw_ellipse(ellipse, |x, y, c| self.draw(x, y, c), dims, color);
     }
 
-    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: u8) {
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: Rgba<u8>) {
         let cameraloc = array![0.5, 0.5, -2.0];
 
         // Tait–Bryan angle vector in radians

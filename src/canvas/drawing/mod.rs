@@ -1,6 +1,8 @@
 mod scene2d;
 mod scene3d;
 
+use image::Rgba;
+
 pub use self::scene2d::{Shape2D, Line2D, Ellipse2D};
 pub use self::scene3d::Shape3D;
 
@@ -8,13 +10,13 @@ fn rfpart(x: f64) -> f64 {
     1.0 - x.fract()
 }
 
-fn scale_to_byte(x: f64, color: u8) -> u8 {
-    (x * color as f64).round() as u8
+fn scale_to_byte(x: f64) -> u8 {
+    (x * 255 as f64).round() as u8
 }
 
 // https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
-pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, u32), color: u8)
-        where F: FnMut(f64, f64, u8)
+pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, u32), color: Rgba<u8>)
+        where F: FnMut(f64, f64, Rgba<u8>)
 {
     // TODO: along with scale_to_byte, needs to be modified to account for background color with antialiasing
     let mut x0 = line.x0 * dimensions.0 as f64;
@@ -47,11 +49,19 @@ pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, 
     let ypxl1 = yend.floor() as u32;
 
     if steep {
-        draw(ypxl1 as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
-        draw((ypxl1 + 1) as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
+        let mut newpx = color.clone();
+        newpx.data[3] = scale_to_byte(rfpart(yend) * xgap);
+        draw(ypxl1 as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, newpx);
+        newpx = color.clone();
+        newpx.data[3] = scale_to_byte(yend.fract() * xgap);
+        draw((ypxl1 + 1) as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, newpx);
     } else {
-        draw(xpxl1 as f64 / dimensions.0 as f64, ypxl1 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
-        draw(xpxl1 as f64 / dimensions.0 as f64, (ypxl1 + 1) as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
+        let mut newpx = color.clone();
+        newpx.data[3] = scale_to_byte(rfpart(yend) * xgap);
+        draw(xpxl1 as f64 / dimensions.0 as f64, ypxl1 as f64 / dimensions.1 as f64, newpx);
+        newpx = color.clone();
+        newpx.data[3] = scale_to_byte(yend.fract() * xgap);
+        draw(xpxl1 as f64 / dimensions.0 as f64, (ypxl1 + 1) as f64 / dimensions.1 as f64, newpx);
     }
 
     let mut intery = yend + gradient;
@@ -62,39 +72,55 @@ pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, 
     let xpxl2 = xend as u32;
     let ypxl2 = yend.floor() as u32;
     if steep {
-        draw(ypxl2 as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
-        draw((ypxl2 + 1) as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
+        let mut newpx = color.clone();
+        newpx.data[3] = scale_to_byte(rfpart(yend) * xgap);
+        draw(ypxl2 as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, newpx);
+        newpx = color.clone();
+        newpx.data[3] = scale_to_byte(yend.fract() * xgap);
+        draw((ypxl2 + 1) as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, newpx);
     } else {
-        draw(xpxl2 as f64 / dimensions.0 as f64, ypxl2 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
-        draw(xpxl2 as f64 / dimensions.0 as f64, (ypxl2 + 1) as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
+        let mut newpx = color.clone();
+        newpx.data[3] = scale_to_byte(rfpart(yend) * xgap);
+        draw(xpxl2 as f64 / dimensions.0 as f64, ypxl2 as f64 / dimensions.1 as f64, newpx);
+        newpx = color.clone();
+        newpx.data[3] = scale_to_byte(yend.fract() * xgap);
+        draw(xpxl2 as f64 / dimensions.0 as f64, (ypxl2 + 1) as f64 / dimensions.1 as f64, newpx);
     }
 
     if steep {
         for x in (xpxl1+1)..(xpxl2-1) {
+            let mut newpx = color.clone();
+            newpx.data[3] = scale_to_byte(rfpart(intery));
             draw(intery.floor() / dimensions.0 as f64, 
                     x as f64 / dimensions.1 as f64, 
-                    scale_to_byte(rfpart(intery), color));
+                    newpx);
+            newpx = color.clone();
+            newpx.data[3] = scale_to_byte(intery.fract());
             draw((intery.floor() + 1.0) / dimensions.0 as f64, 
                     x as f64 / dimensions.1 as f64, 
-                    scale_to_byte(intery.fract(), color));
+                    newpx);
             intery += gradient;
         }
     } else {
         for x in (xpxl1+1)..(xpxl2-1) {
+            let mut newpx = color.clone();
+            newpx.data[3] = scale_to_byte(rfpart(intery));
             draw(x as f64 / dimensions.0 as f64, 
                     intery.floor() / dimensions.1 as f64, 
-                    scale_to_byte(rfpart(intery), color));
+                    newpx);
+            newpx = color.clone();
+            newpx.data[3] = scale_to_byte(intery.fract());
             draw(x as f64 / dimensions.0 as f64, 
                     (intery.floor() + 1.0) / dimensions.1 as f64, 
-                    scale_to_byte(intery.fract(), color));
+                    newpx);
             intery += gradient;
         }
     }
 }
 
 //http://members.chello.at/~easyfilter/bresenham.html
-pub fn draw_ellipse<F>(ellipse: &Ellipse2D, mut draw: F, dimensions: (u32, u32), color: u8) 
-        where F: FnMut(f64, f64, u8)
+pub fn draw_ellipse<F>(ellipse: &Ellipse2D, mut draw: F, dimensions: (u32, u32), color: Rgba<u8>) 
+        where F: FnMut(f64, f64, Rgba<u8>)
 {
     let mut x0 = (ellipse.x0 * dimensions.0 as f64).round() as u32;
     let mut y0 = (ellipse.y0 * dimensions.1 as f64).round() as u32;
