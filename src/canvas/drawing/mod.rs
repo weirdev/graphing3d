@@ -8,13 +8,15 @@ fn rfpart(x: f64) -> f64 {
     1.0 - x.fract()
 }
 
-fn scale_to_byte(x: f64) -> u8 {
-    (x * 255.0).round() as u8
+fn scale_to_byte(x: f64, color: u8) -> u8 {
+    (x * color as f64).round() as u8
 }
 
-pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, u32))
+// https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
+pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, u32), color: u8)
         where F: FnMut(f64, f64, u8)
 {
+    // TODO: along with scale_to_byte, needs to be modified to account for background color with antialiasing
     let mut x0 = line.x0 * dimensions.0 as f64;
     let mut y0 = line.y0 * dimensions.1 as f64;
     let mut x1 = line.x1 * dimensions.0 as f64;
@@ -45,11 +47,11 @@ pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, 
     let ypxl1 = yend.floor() as u32;
 
     if steep {
-        draw(ypxl1 as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap));
-        draw((ypxl1 + 1) as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap));
+        draw(ypxl1 as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
+        draw((ypxl1 + 1) as f64 / dimensions.0 as f64, xpxl1 as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
     } else {
-        draw(xpxl1 as f64 / dimensions.0 as f64, ypxl1 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap));
-        draw(xpxl1 as f64 / dimensions.0 as f64, (ypxl1 + 1) as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap));
+        draw(xpxl1 as f64 / dimensions.0 as f64, ypxl1 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
+        draw(xpxl1 as f64 / dimensions.0 as f64, (ypxl1 + 1) as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
     }
 
     let mut intery = yend + gradient;
@@ -60,38 +62,38 @@ pub fn draw_line2d_antialiased<F>(line: &Line2D, mut draw: F, dimensions: (u32, 
     let xpxl2 = xend as u32;
     let ypxl2 = yend.floor() as u32;
     if steep {
-        draw(ypxl2 as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap));
-        draw((ypxl2 + 1) as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap));
+        draw(ypxl2 as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
+        draw((ypxl2 + 1) as f64 / dimensions.0 as f64, xpxl2 as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
     } else {
-        draw(xpxl2 as f64 / dimensions.0 as f64, ypxl2 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap));
-        draw(xpxl2 as f64 / dimensions.0 as f64, (ypxl2 + 1) as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap));
+        draw(xpxl2 as f64 / dimensions.0 as f64, ypxl2 as f64 / dimensions.1 as f64, scale_to_byte(rfpart(yend) * xgap, color));
+        draw(xpxl2 as f64 / dimensions.0 as f64, (ypxl2 + 1) as f64 / dimensions.1 as f64, scale_to_byte(yend.fract() * xgap, color));
     }
 
     if steep {
         for x in (xpxl1+1)..(xpxl2-1) {
             draw(intery.floor() / dimensions.0 as f64, 
                     x as f64 / dimensions.1 as f64, 
-                    scale_to_byte(rfpart(intery)));
+                    scale_to_byte(rfpart(intery), color));
             draw((intery.floor() + 1.0) / dimensions.0 as f64, 
                     x as f64 / dimensions.1 as f64, 
-                    scale_to_byte(intery.fract()));
+                    scale_to_byte(intery.fract(), color));
             intery += gradient;
         }
     } else {
         for x in (xpxl1+1)..(xpxl2-1) {
             draw(x as f64 / dimensions.0 as f64, 
                     intery.floor() / dimensions.1 as f64, 
-                    scale_to_byte(rfpart(intery)));
+                    scale_to_byte(rfpart(intery), color));
             draw(x as f64 / dimensions.0 as f64, 
                     (intery.floor() + 1.0) / dimensions.1 as f64, 
-                    scale_to_byte(intery.fract()));
+                    scale_to_byte(intery.fract(), color));
             intery += gradient;
         }
     }
 }
 
 //http://members.chello.at/~easyfilter/bresenham.html
-pub fn draw_ellipse<F>(ellipse: &Ellipse2D, mut draw: F, dimensions: (u32, u32)) 
+pub fn draw_ellipse<F>(ellipse: &Ellipse2D, mut draw: F, dimensions: (u32, u32), color: u8) 
         where F: FnMut(f64, f64, u8)
 {
     let mut x0 = (ellipse.x0 * dimensions.0 as f64).round() as u32;
@@ -121,10 +123,10 @@ pub fn draw_ellipse<F>(ellipse: &Ellipse2D, mut draw: F, dimensions: (u32, u32))
     b1 = 8 * b * b;
 
     loop {
-        draw(x1 as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
-        draw(x0 as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
-        draw(x0 as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, 255);
-        draw(x1 as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, 255);
+        draw(x1 as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, color);
+        draw(x0 as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, color);
+        draw(x0 as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, color);
+        draw(x1 as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, color);
         let e2 = 2 * err;
         if e2 <= dy {
             y0 += 1;
@@ -146,11 +148,11 @@ pub fn draw_ellipse<F>(ellipse: &Ellipse2D, mut draw: F, dimensions: (u32, u32))
 
     
     while (y0 as i32 - y1 as i32) < b as i32 {
-        draw((x0-1) as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
-        draw((x1+1) as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, 255);
+        draw((x0-1) as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, color);
+        draw((x1+1) as f64 / dimensions.0 as f64, y0 as f64 / dimensions.1 as f64, color);
         y0 += 1;
-        draw((x0-1) as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, 255);
-        draw((x1+1) as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, 255);
+        draw((x0-1) as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, color);
+        draw((x1+1) as f64 / dimensions.0 as f64, y1 as f64 / dimensions.1 as f64, color);
         y1 -= 1;
     }
 }

@@ -9,15 +9,15 @@ pub use self::drawing::{Shape2D, Line2D, Ellipse2D, Shape3D};
 pub use self::drawing::{draw_line2d_antialiased, draw_ellipse};
 
 pub enum Scene<'a> {
-    Scene2D(Vec<Shape2D>),
-    Scene3D(Vec<Shape3D<'a>>)
+    Scene2D(Vec<(Shape2D, u8)>),
+    Scene3D(Vec<(Shape3D<'a>, u8)>)
 }
 
 pub trait Canvas {
     fn draw(&mut self, x: f64, y: f64, color: u8);
-    fn draw_line2d(&mut self, line: &Line2D);
-    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D);
-    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>);
+    fn draw_line2d(&mut self, line: &Line2D, color: u8);
+    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: u8);
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: u8);
     fn save<Q>(&self, path: Q) -> io::Result<()> 
             where Q: AsRef<Path>;
     fn render(&mut self, scene: Scene);
@@ -28,9 +28,9 @@ pub struct ImageCanvas {
 }
 
 impl ImageCanvas {
-    pub fn blank(x: u32, y: u32) -> ImageCanvas {
+    pub fn blank(x: u32, y: u32, background: u8) -> ImageCanvas {
         ImageCanvas {
-            img: <ImageBuffer<Luma<u8>, Vec<u8>>>::new(x, y)
+            img: <ImageBuffer<Luma<u8>, Vec<u8>>>::from_pixel(x, y, Luma([background]))
         }
     }
 }
@@ -48,17 +48,17 @@ impl Canvas for ImageCanvas {
         self.img.save(path)
     }
 
-    fn draw_line2d(&mut self, line: &Line2D) {
+    fn draw_line2d(&mut self, line: &Line2D, color: u8) {
         let dims = self.img.dimensions();
-        draw_line2d_antialiased(line, |x, y, c| self.draw(x, y, c), dims);
+        draw_line2d_antialiased(line, |x, y, c| self.draw(x, y, c), dims, color);
     }
     
-    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D) {
+    fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: u8) {
         let dims = self.img.dimensions();
-        draw_ellipse(ellipse, |x, y, c| self.draw(x, y, c), dims);
+        draw_ellipse(ellipse, |x, y, c| self.draw(x, y, c), dims, color);
     }
 
-    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>) {
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: u8) {
         let cameraloc = array![0.5, 0.5, -2.0];
 
         // Tait–Bryan angle vector in radians
@@ -105,24 +105,25 @@ impl Canvas for ImageCanvas {
                 x1: point[0] + 0.01,
                 y0: point[1] - 0.01,
                 y1: point[1] + 0.01
-            });
+            }, color);
         }
     }
 
     fn render(&mut self, scene: Scene) {
+        // TODO: Configurable color
         match scene {
             Scene::Scene2D(scene) => {
-                    for shape in scene.iter() {
+                    for (shape, color) in scene.iter() {
                         match shape {
-                            Shape2D::Line2D(line) => self.draw_line2d(line),
-                            Shape2D::Ellipse2D(ellipse) => self.draw_ellipse2d(ellipse)
+                            Shape2D::Line2D(line) => self.draw_line2d(line, *color),
+                            Shape2D::Ellipse2D(ellipse) => self.draw_ellipse2d(ellipse, *color)
                         }
                     }
                 }
             Scene::Scene3D(mut scene) => {
-                    for shape in scene.iter_mut() {
+                    for (shape, color) in scene.iter_mut() {
                         match shape {
-                            Shape3D::Points3D(ref mut points) => self.draw_points3d(*points)
+                            Shape3D::Points3D(ref mut points) => self.draw_points3d(*points, *color)
                         }
                     }
                 }
