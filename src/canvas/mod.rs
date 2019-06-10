@@ -1,5 +1,6 @@
 use std::io;
 use std::path::Path;
+use std::f64::consts::PI;
 use image::{ImageBuffer, Rgba};
 use ndarray::{Array, Array1, Zip, aview_mut1, ArrayViewMut2};
 
@@ -17,10 +18,15 @@ pub trait Canvas {
     fn draw(&mut self, x: f64, y: f64, color: Rgba<u8>);
     fn draw_line2d(&mut self, line: &Line2D, color: Rgba<u8>);
     fn draw_ellipse2d(&mut self, ellipse: &Ellipse2D, color: Rgba<u8>);
-    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: Rgba<u8>);
+
+    // axes_rotation is Tait–Bryan angle vector in radians (x, y, z)
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: Rgba<u8>, axes_rotation: &Array1<f64>);
+
     fn save<Q>(&self, path: Q) -> io::Result<()> 
             where Q: AsRef<Path>;
-    fn render(&mut self, scene: Scene);
+
+    // axes_rotation is Tait–Bryan angle vector in radians (x, y, z)
+    fn render(&mut self, scene: Scene, axes_rotation: Option<&Array1<f64>>);
 }
 
 pub struct ImageCanvas {
@@ -58,33 +64,39 @@ impl Canvas for ImageCanvas {
         draw_ellipse(ellipse, |x, y, c| self.draw(x, y, c), dims, color);
     }
 
-    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: Rgba<u8>) {
-        let cameraloc = array![0.5, 0.5, -2.0];
+    // https://en.wikipedia.org/wiki/Euler_angles#Rotation_matrix passive rotation
+    // TODO: points matrix should be transformed in place
+    // axes_rotation is Tait–Bryan angle vector in radians (x, y, z)
+    fn draw_points3d(&mut self, points: &mut ArrayViewMut2<f64>, color: Rgba<u8>, axes_rotation: &Array1<f64>) {
+        let origin = array![0.5, 0.5, 0.5];
 
-        // Tait–Bryan angle vector in radians
-        let camdir: Array1<f64> = array![0.0, 0.0, 0.0];
+        // Translate points to be relative to 
+        *points -= &origin;
+
+        let cosx = axes_rotation[0].cos();
+        let cosy = axes_rotation[1].cos();
+        let cosz = axes_rotation[2].cos();
+
+        let sinx = axes_rotation[0].sin();
+        let siny = axes_rotation[1].sin();
+        let sinz = axes_rotation[2].sin();
+
+        // TODO: simplify this
+        let transform_matrix = array![
+            [cosy*cosz,     cosx*sinz + cosz*sinx*siny, sinx*sinz - cosx*cosz*siny],
+            [-cosy*sinz,    cosx*cosz + sinx*siny*sinz, cosz*sinx + cosx*siny*sinz],
+            [siny,          -cosy*sinx,                 cosx*cosy]];
+
+        // TODO: Not in-place
+        let mut transf_points = points.dot(&transform_matrix.t());
+        
+        // Relative to origin
+        let cameraloc = array![0.0, 0.0, -2.5];
+        // Translate points to be relative to the camera location
+        transf_points -= &cameraloc;
 
         // Relative to cameraloc
         let display_loc = array![0.0, 0.0, 1.0];
-
-        *points -= &cameraloc;
-
-        let mut transform_matrix = array![
-            [1.0, 0.0, 0.0],
-            [0.0, camdir[0].cos(), camdir[0].sin()],
-            [0.0, -camdir[0].sin(), camdir[0].cos()]];
-        
-        transform_matrix = transform_matrix.dot(&array![
-            [camdir[1].cos(), 0.0, -camdir[1].sin()],
-            [0.0, 1.0, 0.0],
-            [camdir[1].sin(), 0.0, camdir[1].cos()]]);
-
-        transform_matrix = transform_matrix.dot(&array![
-            [camdir[2].cos(), camdir[2].sin(), 0.0],
-            [-camdir[2].sin(), camdir[2].cos(), 0.0],
-            [0.0, 0.0, 1.0]]);
-        
-        let transf_points = points.dot(&transform_matrix.t());
 
         let mut proj_points = Array::zeros((points.dim().0, 2));
 
@@ -109,8 +121,14 @@ impl Canvas for ImageCanvas {
         }
     }
 
-    fn render(&mut self, scene: Scene) {
-        // TODO: Configurable color
+    // axes_rotation is Tait–Bryan angle vector in radians (x, y, z)
+    fn render(&mut self, scene: Scene, axes_rotation: Option<&Array1<f64>>) {
+        let no_rotation = array![0.0, 0.0, 0.0];
+        let set_axes_rotation = match axes_rotation {
+            Some(ar) => ar,
+            None => &no_rotation
+        };
+        
         match scene {
             Scene::Scene2D(scene) => {
                     for (shape, color) in scene.iter() {
@@ -123,7 +141,7 @@ impl Canvas for ImageCanvas {
             Scene::Scene3D(mut scene) => {
                     for (shape, color) in scene.iter_mut() {
                         match shape {
-                            Shape3D::Points3D(ref mut points) => self.draw_points3d(*points, *color)
+                            Shape3D::Points3D(ref mut points) => self.draw_points3d(*points, *color, set_axes_rotation)
                         }
                     }
                 }

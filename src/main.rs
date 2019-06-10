@@ -25,7 +25,7 @@ fn main() {
     };
     scene.push((Shape2D::Line2D(line1), Rgba([0, 0, 0, 255])));
     scene.push((Shape2D::Ellipse2D(ellipse1), Rgba([0, 0, 0, 255])));
-    img.render(Scene::Scene2D(scene));
+    img.render(Scene::Scene2D(scene), None);
     img.save("line.png").unwrap();
 
     let mut points = array![[0.2, 0.7, 0.0],
@@ -33,6 +33,6 @@ fn main() {
         [0.2, 0.7, 1.0]];
 
     img = ImageCanvas::blank(512, 512, Rgba([255, 255, 255, 255]));
-    img.render(Scene::Scene3D(vec![(Shape3D::Points3D(&mut points.view_mut()), Rgba([0, 0, 0, 255]))]));
+    img.render(Scene::Scene3D(vec![(Shape3D::Points3D(&mut points.view_mut()), Rgba([0, 0, 0, 255]))]), None);
     img.save("points2.png").unwrap();
 }

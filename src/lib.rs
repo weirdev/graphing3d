@@ -8,7 +8,7 @@ use image::Rgba;
 
 use std::slice;
 use canvas::{Canvas, ImageCanvas, Line2D, Shape2D, Ellipse2D, Scene, Shape3D};
-use ndarray::{aview_mut1};
+use ndarray::{aview_mut1, Array1};
 
 #[repr(C)]
 pub struct RgbaStruct {
@@ -21,6 +21,20 @@ pub struct RgbaStruct {
 impl RgbaStruct {
     fn to_pixel(&self) -> Rgba<u8> {
         Rgba([self.r, self.g, self.b, self.a])
+    }
+}
+
+// Tait–Bryan angle vector in radians (x, y, z)
+#[repr(C)]
+pub struct TbaStruct {
+    x: f64,
+    y: f64,
+    z: f64
+}
+
+impl TbaStruct {
+    fn to_array(&self) -> Array1<f64> {
+        array![self.x, self.y, self.z]
     }
 }
 
@@ -42,12 +56,12 @@ pub extern "C" fn subroutine1() {
     };
     scene.push((Shape2D::Line2D(line1), Rgba([0, 0, 0, 255])));
     scene.push((Shape2D::Ellipse2D(ellipse1), Rgba([0, 0, 0, 255])));
-    img.render(Scene::Scene2D(scene));
+    img.render(Scene::Scene2D(scene), None);
     img.save("line.png").unwrap();
 }
 
 #[no_mangle]
-pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize, color: RgbaStruct) {
+pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize, color: RgbaStruct, axes_rotation: TbaStruct) {
     if point_buffer.is_null() {
         return;
     }
@@ -55,6 +69,6 @@ pub extern "C" fn plot3d_scatter(point_buffer: *mut f64, pointcount: usize, colo
 
     let mut points = aview_mut1(point_buffer).into_shape((pointcount, 3)).unwrap();
     let mut img = ImageCanvas::blank(512, 512, Rgba([255, 255, 255, 255]));
-    img.render(Scene::Scene3D(vec![(Shape3D::Points3D(&mut points), color.to_pixel())]));
+    img.render(Scene::Scene3D(vec![(Shape3D::Points3D(&mut points), color.to_pixel())]), Some(&axes_rotation.to_array()));
     img.save("pointspython.png").unwrap();
 }
